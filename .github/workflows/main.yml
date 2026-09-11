@@ -62,13 +62,17 @@ jobs:
           name: ${{ matrix.device }}-sysupgrade
           path: output/*.img
           if-no-files-found: error
+          
+      - name: Generate release tag
+        id: vars
+        run: echo "tag=build-$(date +'%Y%m%d-%H%M%S')-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
       - name: Upload firmware to release
         if: ${{ env.UPLOAD_RELEASE == 'true' }}
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest
-          name: Latest firmware
+          tag_name: ${{ steps.vars.outputs.tag }}
+          name: "Firmware ${{ steps.vars.outputs.tag }}"
           body: |
             Alpine Linux firmware
 
