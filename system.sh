@@ -53,12 +53,12 @@ sed -i '/^\ttar xf \$rootfs_tarball -C \$RK_PROJECT_PACKAGE_ROOTFS_DIR$/a\\tmkdi
 sed -i '/^&gmac {$/,/^};$/ s/status = "disabled";/status = "okay";/' \
   sysdrv/source/kernel/arch/arm/boot/dts/rv1103g-luckfox-pico-mini-b.dts
 
-./build.sh uboot
-./build.sh kernel
-./build.sh driver
-./build.sh env
-./build.sh firmware
-./build.sh save
+sudo ./build.sh uboot
+sudo ./build.sh kernel
+sudo ./build.sh driver
+sudo ./build.sh env
+sudo ./build.sh firmware
+sudo ./build.sh save
 
 popd || exit
 

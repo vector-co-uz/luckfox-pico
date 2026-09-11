@@ -40,5 +40,6 @@ rm -rf /var/cache/apk/*
 for d in bin etc lib sbin usr; do tar c "$d" | tar x -C /extrootfs; done
 for dir in dev proc root run sys var oem userdata; do mkdir /extrootfs/${dir}; done
 mkdir -p /extrootfs/var/empty
-mkdir -p /var/empty
+chown root:root /extrootfs/var/empty
+chmod 755 /extrootfs/var/empty
 mkdir -p -m 1777 /tmp
