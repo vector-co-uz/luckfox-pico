@@ -1,0 +1,36 @@
+#!/bin/sh
+# Read-only status: no root privileges, no network requests, no persistent writes.
+proc_root=${PICO_STATUS_PROC_ROOT:-/proc}
+sys_root=${PICO_STATUS_SYS_ROOT:-/sys}
+etc_root=${PICO_STATUS_ETC_ROOT:-/etc}
+printf '\n  Luckfox Pico | %s | Alpine %s\n' "$(hostname)" "$(cat "$etc_root/alpine-release" 2>/dev/null)"
+printf '  %s\n' "$(date '+%Y-%m-%d %H:%M:%S %Z')"
+printf '  Kernel: %s\n' "$(uname -r)"
+awk '{printf "  Uptime: %dd %dh %dm\n",$1/86400,($1%86400)/3600,($1%3600)/60}' "$proc_root/uptime" 2>/dev/null
+awk '{printf "  CPU load average (1/5/15 min): %s / %s / %s\n",$1,$2,$3}' "$proc_root/loadavg" 2>/dev/null
+awk '
+    /^MemTotal:/ {total=$2} /^MemAvailable:/ {avail=$2; known=1}
+    /^MemFree:/ {free=$2} /^SwapTotal:/ {swap=$2} /^SwapFree:/ {swapfree=$2}
+    END {if(total) printf "  RAM: %.1f MiB total, %.1f MiB %s\n",total/1024,(known?avail:free)/1024,(known?"available":"free")
+         if(swap) printf "  Swap: %.1f / %.1f MiB used\n",(swap-swapfree)/1024,swap/1024}' "$proc_root/meminfo" 2>/dev/null
+found=0
+for zone in "$sys_root"/class/thermal/thermal_zone*; do
+    [ -r "$zone/temp" ] || continue
+    raw=$(cat "$zone/temp" 2>/dev/null)
+    case "$raw" in ''|*[!0-9-]*) continue ;; esac
+    label=$(cat "$zone/type" 2>/dev/null)
+    awk -v name="$label" -v temp="$raw" 'BEGIN {printf "  Temperature (%s): %.1f C\n",name,temp/1000}'
+    found=1
+done
+[ "$found" = 1 ] || printf '  Temperature: sensor not exposed by kernel\n'
+printf '\n  IP addresses:\n'
+ip -o addr show 2>/dev/null | awk '$3=="inet" || $3=="inet6" {printf "    %-12s %s\n",$2,$4}'
+printf '\n  Default routes:\n'
+ip route show default 2>/dev/null
+printf '\n  Filesystem space:\n'
+df -h 2>/dev/null
+if command -v lsblk >/dev/null 2>&1; then
+    printf '\n  Connected block devices:\n'
+    lsblk -o NAME,SIZE,TYPE,MOUNTPOINT 2>/dev/null
+fi
+printf '\n  Configure: pico-config\n\n'

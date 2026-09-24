@@ -1,0 +1,32 @@
+name: Check pico-config
+on:
+  pull_request:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'overlay/usr/sbin/pico-config'
+      - 'overlay/usr/bin/pico-status'
+      - 'overlay/usr/lib/pico-config/**'
+      - 'overlay/etc/profile.d/**'
+      - 'tests/pico-config.sh'
+      - 'tests/modules.sh'
+      - 'install-pico-config.sh'
+      - '.github/workflows/pico-config-check.yml'
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check shell syntax and configuration handling
+        run: |
+          sh -n overlay/usr/sbin/pico-config
+          sh -n install-pico-config.sh
+          sh -n overlay/usr/bin/pico-status
+          for file in overlay/usr/lib/pico-config/*.sh; do sh -n "$file"; done
+          sh tests/pico-config.sh
+          sh tests/modules.sh
+      - name: Test with Alpine ash
+        run: |
+          docker run --rm -v "$PWD:/src:ro" -w /src alpine:3.23 sh -c 'sh tests/pico-config.sh && sh tests/modules.sh'

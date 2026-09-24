@@ -1,5 +1,5 @@
 #!/bin/bash
-set -eo pipefail
+#set -eo pipefail
 OUTPUT_DIR="output"
 ROOTFS_FILE="rootfs-alpine.tar.gz"
 
@@ -8,13 +8,12 @@ ROOTFS_WORKSPACE_FILE="$ROOTFS_WORKSPACE_NAME.ext4"
 ROOTFS_WORKSPACE_MNT="/tmp/$ROOTFS_WORKSPACE_NAME/"
 
 rootfs_workspace_drop() {
-  if mountpoint -q "$ROOTFS_WORKSPACE_MNT"; then umount -R "$ROOTFS_WORKSPACE_MNT"; fi
+  umount -R "$ROOTFS_WORKSPACE_MNT"
   rm -rf "$ROOTFS_WORKSPACE_FILE" "$ROOTFS_WORKSPACE_MNT"
 }
 rootfs_workspace_new() {
   mkdir -p "$ROOTFS_WORKSPACE_MNT"
-  # Build workspace only; this does not alter the board's NAND partition table.
-  dd if=/dev/zero of="$ROOTFS_WORKSPACE_FILE" bs=1M count=256
+  dd if=/dev/zero of="$ROOTFS_WORKSPACE_FILE" bs=1M count=100
   mkfs.ext4 "$ROOTFS_WORKSPACE_FILE"
   mount "$ROOTFS_WORKSPACE_FILE" "$ROOTFS_WORKSPACE_MNT"
 }
@@ -27,7 +26,7 @@ rootfs_workspace_new
 docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
 # Create docker
-if docker container inspect armv7alpine >/dev/null 2>&1; then docker container rm -f armv7alpine; fi
+docker container rm -f armv7alpine
 docker run \
     --name armv7alpine \
     --platform linux/arm/v7 \
@@ -51,12 +50,6 @@ overlay() {
   sed -i -e "s/{TTY_PORT}/$TTY_PORT/g" "$OVERLAY_WORKSPACE/etc/inittab"
 
   rsync -a "$OVERLAY_WORKSPACE/" "$ROOTFS_WORKSPACE_MNT/"
-  chmod 755 "$ROOTFS_WORKSPACE_MNT/usr/sbin/pico-config"
-  chmod 755 "$ROOTFS_WORKSPACE_MNT/usr/bin/pico-status"
-  chmod 644 "$ROOTFS_WORKSPACE_MNT/usr/lib/pico-config/"*.sh
-  chmod 644 "$ROOTFS_WORKSPACE_MNT/etc/profile.d/90-pico-motd.sh"
-  mkdir -p -m 1777 "$ROOTFS_WORKSPACE_MNT/tmp"
-  chmod 1777 "$ROOTFS_WORKSPACE_MNT/tmp"
   rm -rf "$OVERLAY_WORKSPACE"
 
   echo "Include /etc/ssh/sshd_config.d/*.conf" >> \

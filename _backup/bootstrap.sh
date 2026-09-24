@@ -1,5 +1,4 @@
 #!/bin/sh
-set -e
 
 # Install base
 apk update
@@ -33,17 +32,14 @@ apk add nano
 apk add mc
 apk add chrony
 apk add usbutils
-apk add dialog tzdata
-apk add iproute2 lsblk findmnt mount umount cifs-utils nfs-utils libgpiod openssh-keygen chrony-openrc busybox-openrc
 
 # Clear apk cache
 rm -rf /var/cache/apk/*
 
 # Packaging rootfs
-for d in bin etc lib sbin usr var; do cp -a "$d" /extrootfs/; done
-for dir in dev proc root run sys var oem userdata; do mkdir -p /extrootfs/${dir}; done
+for d in bin etc lib sbin usr; do tar c "$d" | tar x -C /extrootfs; done
+for dir in dev proc root run sys var oem userdata; do mkdir /extrootfs/${dir}; done
 mkdir -p /extrootfs/var/empty
 chown root:root /extrootfs/var/empty
 chmod 755 /extrootfs/var/empty
-mkdir -p /extrootfs/tmp
-chmod 1777 /extrootfs/tmp
+mkdir -p -m 1777 /tmp

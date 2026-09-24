@@ -1,0 +1,135 @@
+#!/bin/sh
+# Small, independent configuration menu for Alpine/OpenRC (not DietPi).
+
+valid_ipv4() {
+    printf '%s\n' "$1" | awk -F. '
+        NR != 1 || NF != 4 {exit 1}
+        {for(i=1;i<=4;i++) if($i !~ /^[0-9]+$/ || length($i)>3 || $i+0>255) exit 1}'
+}
+
+valid_hostname() {
+    case "$1" in ''|*[!a-zA-Z0-9-]*) return 1 ;; esac
+    [ "${#1}" -le 63 ] && printf '%s\n' "$1" | grep -Eq '^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?$'
+}
+
+# Replace only the selected interface in this firmware's simple interfaces file.
+# Refuse advanced layouts instead of accidentally damaging bridge/VLAN/hooks.
+simple_network() {
+    awk '
+        /^[[:space:]]*($|#)/ {next}
+        $1 == "auto" {next}
+        $1 == "iface" && $3 == "inet" && ($4 == "static" || $4 == "dhcp" || $4 == "loopback") {next}
+        $1 == "address" || $1 == "netmask" || $1 == "gateway" {next}
+        {exit 1}' "$1"
+}
+
+render_network() {
+    awk -v dev="$2" '
+        $1 == "auto" {
+            line="auto"; for(i=2;i<=NF;i++) if($i!=dev) line=line " " $i
+            if(line!="auto") print line
+            next
+        }
+        $1 == "iface" {skip=($2==dev)}
+        !skip {print}' "$1"
+    printf '\nauto %s\niface %s inet %s\n' "$2" "$2" "$3"
+    if [ "$3" = static ]; then
+        printf '    address %s\n    netmask %s\n' "$4" "$5"
+        [ -z "$6" ] || printf '    gateway %s\n' "$6"
+    fi
+    return 0
+}
+
+msg() { dialog --title 'Pico Config' --msgbox "$1" 14 72; }
+ask() { dialog --stdout --title 'Pico Config' --inputbox "$1" 10 72 "${2:-}"; }
+confirm() { dialog --title 'Pico Config' --yesno "$1" 12 72; }
+view() { dialog --title 'Pico Config' --textbox "$1" 23 78; }
+
+# Keep one original backup and the previous version. Replace files atomically.
+save_file() {
+    local dest source_file staged
+    dest=$1
+    source_file=$2
+    if [ -e "$dest" ]; then
+        [ -e "$dest.pico-original" ] || cp -p "$dest" "$dest.pico-original" || return 1
+        cp -p "$dest" "$dest.pico-previous" || return 1
+    fi
+    staged=$(mktemp "${dest}.pico.XXXXXX") || return 1
+    if cat "$source_file" > "$staged" && chmod 644 "$staged" && mv -f "$staged" "$dest"; then
+        return 0
+    fi
+    rm -f "$staged"
+    return 1
+}
+
+network() {
+    file=/etc/network/interfaces
+    simple_network "$file" || { msg 'Advanced network configuration detected. Edit /etc/network/interfaces manually.'; return; }
+    dev=$(dialog --stdout --menu 'Interface to configure' 12 65 3 eth0 'Ethernet' usb0 'USB network (RNDIS)') || return
+    mode=$(dialog --stdout --menu "Address mode for $dev" 12 65 3 static 'Static IPv4' dhcp 'Automatic address (DHCP)') || return
+    address= mask= gateway=
+    if [ "$mode" = static ]; then
+        address=$(ask 'IPv4 address:') || return
+        valid_ipv4 "$address" || { msg 'Invalid IPv4 address.'; return; }
+        mask=$(ask 'Subnet mask:' '255.255.255.0') || return
+        case "$mask" in
+            255.255.255.0|255.255.0.0|255.0.0.0|255.255.255.128|255.255.255.192|255.255.255.224|255.255.255.240|255.255.255.248|255.255.255.252|255.255.254.0|255.255.252.0|255.255.248.0|255.255.240.0|255.255.224.0|255.255.192.0|255.255.128.0) ;;
+            *) msg 'Unsupported subnet mask. Use a standard contiguous /8, /16 through /30 mask from the menu documentation.'; return ;;
+        esac
+        gateway=$(ask 'Gateway (leave empty for a local-only USB connection):') || return
+        if [ -n "$gateway" ]; then
+            valid_ipv4 "$gateway" || { msg 'Invalid gateway.'; return; }
+        fi
+    fi
+    render_network "$file" "$dev" "$mode" "$address" "$mask" "$gateway" > "$work/network"
+    view "$work/network"
+    confirm 'Save this network configuration? It takes effect after reboot. The new address must be reachable from your computer.' || return
+    if save_file "$file" "$work/network"; then
+        msg 'Saved. Network settings will apply after reboot. DNS is configured separately.'
+    else msg 'Could not save network settings.'; fi
+}
+
+dns() {
+    [ ! -L /etc/resolv.conf ] || { msg 'DNS is managed through a symlink. Configure it with the owning network service.'; return; }
+    server=$(ask 'IPv4 DNS server (DHCP may replace this setting):') || return
+    valid_ipv4 "$server" || { msg 'Invalid DNS address.'; return; }
+    confirm "Set DNS to $server now?" || return
+    printf 'nameserver %s\n' "$server" > "$work/dns"
+    save_file /etc/resolv.conf "$work/dns" && msg 'DNS saved.' || msg 'Could not save DNS.'
+}
+
+set_hostname() {
+    name=$(ask 'Device hostname:' "$(cat /etc/hostname)") || return
+    valid_hostname "$name" || { msg 'Use 1-63 letters, digits or hyphens; start and end with a letter or digit.'; return; }
+    printf '%s\n' "$name" > "$work/hostname"
+    save_file /etc/hostname "$work/hostname" && msg 'Hostname saved. Applies after reboot.' || msg 'Could not save hostname.'
+}
+
+timezone() {
+    zone=$(ask 'Timezone, e.g. Asia/Tashkent, Europe/Moscow or UTC:' "$(cat /etc/timezone 2>/dev/null)") || return
+    case "$zone" in ''|/*|*..*) msg 'Invalid timezone.'; return ;; esac
+    [ -f "/usr/share/zoneinfo/$zone" ] || { msg 'Timezone not found.'; return; }
+    magic=$(head -c 4 "/usr/share/zoneinfo/$zone")
+    [ "$magic" = TZif ] || { msg 'Select a timezone file.'; return; }
+    save_file /etc/localtime "/usr/share/zoneinfo/$zone" || { msg 'Could not save timezone.'; return; }
+    printf '%s\n' "$zone" > "$work/timezone"
+    save_file /etc/timezone "$work/timezone" && msg 'Timezone applied.' || msg 'Timezone applied, but /etc/timezone could not be saved.'
+}
+
+restore_network() {
+    file=/etc/network/interfaces
+    [ -f "$file.pico-previous" ] || { msg 'No previous network configuration saved.'; return; }
+    cp "$file.pico-previous" "$work/restore" || return
+    view "$work/restore"
+    confirm 'Restore this previous network configuration for the next boot?' || return
+    save_file "$file" "$work/restore" && msg 'Restored. Applies after reboot.' || msg 'Restore failed.'
+}
+
+# Source validators/renderers for tests without opening a menu or changing files.
+if [ "${PICO_CONFIG_LIBRARY_ONLY:-0}" != 1 ]; then
+    for module in storage system users; do
+        [ -r "/usr/lib/pico-config/$module.sh" ] || { echo "Missing pico-config module: $module" >&2; exit 1; }
+        . "/usr/lib/pico-config/$module.sh"
+    done
+    main "$@"
+fi
