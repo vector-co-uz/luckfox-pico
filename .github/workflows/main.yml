@@ -56,12 +56,11 @@ jobs:
       - name: Build final sysupgrade.img
         run: ./system.sh -f rootfs-alpine.tar.gz -d ${{ matrix.device }}
 
-      - name: Verify TUN module is included
+      - name: Verify TUN is enabled in kernel
         run: |
-          test -f sdk/sysdrv/source/kernel/arch/arm/configs/tailscale.config
-          grep -qx 'CONFIG_TUN=m' sdk/sysdrv/source/kernel/arch/arm/configs/tailscale.config
-          find sdk/sysdrv/out/kernel_drv_ko -type f -name 'tun.ko*' -print -quit | grep -q .
-      
+          test -f sdk/sysdrv/source/kernel/.config
+          grep -qx 'CONFIG_TUN=y' sdk/sysdrv/source/kernel/.config
+
       - name: Upload finished sysupgrade image
         uses: actions/upload-artifact@v4
         with:

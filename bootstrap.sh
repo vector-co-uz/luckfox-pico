@@ -44,3 +44,9 @@ chown root:root /extrootfs/var/empty
 chmod 755 /extrootfs/var/empty
 mkdir -p /extrootfs/tmp
 chmod 1777 /extrootfs/tmp
+
+mkdir -p /dev/net
+if [ ! -c /dev/net/tun ]; then
+    mknod /dev/net/tun c 10 200
+    chmod 600 /dev/net/tun
+fi
