@@ -7,6 +7,7 @@ apk add openrc
 rc-update add devfs boot
 rc-update add procfs boot
 rc-update add sysfs boot
+rc-update add modules boot
 rc-update add networking default
 rc-update add local default
 

@@ -45,6 +45,14 @@ echo "$DEVICE_ID" | ./build.sh lunch
 echo "export RK_CUSTOM_ROOTFS=../sysdrv/custom_rootfs/$ROOTFS_NAME" >> .BoardConfig.mk
 echo "export RK_BOOTARGS_CMA_SIZE=\"1M\"" >> .BoardConfig.mk
 
+# The Pico board defconfig does not enable TUN.  Keep this as a fragment so
+# the setting survives the SDK's defconfig generation and is installed by
+# the existing `build.sh driver` step.
+KERNEL_CONFIG_DIR="$(pwd)/sysdrv/source/kernel/arch/arm/configs"
+KERNEL_CONFIG_FRAGMENT="tailscale.config"
+cp "../kernel/$KERNEL_CONFIG_FRAGMENT" "$KERNEL_CONFIG_DIR/$KERNEL_CONFIG_FRAGMENT"
+echo "export RK_KERNEL_DEFCONFIG_FRAGMENT=$KERNEL_CONFIG_FRAGMENT" >> .BoardConfig.mk
+
 # Workaround: build.sh при custom rootfs пишет файлы в стандартные подкаталоги
 # (bin/, etc/profile.d/, etc/init.d/, usr/bin/ и т.д.), не создавая их —
 # минимальный Alpine-rootfs их не содержит. Создаём заранее, сразу после распаковки.
