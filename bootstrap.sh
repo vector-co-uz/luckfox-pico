@@ -27,13 +27,10 @@ rc-update add sshd default
 # Extra stuff
 apk add mtd-utils-ubi
 apk add bottom
-apk add wget
-apk add nano
-apk add mc
-apk add chrony
-apk add usbutils
+apk add wget nano chrony usbutils
 apk add dialog tzdata
-apk add iproute2 lsblk findmnt mount umount cifs-utils nfs-utils libgpiod openssh-keygen chrony-openrc busybox-openrc
+apk add iproute2 lsblk findmnt mount umount cifs-utils nfs-utils libgpiod
+apk add openssh-keygen chrony-openrc busybox-openrc
 
 # Clear apk cache
 rm -rf /var/cache/apk/*
