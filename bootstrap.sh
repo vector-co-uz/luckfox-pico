@@ -45,8 +45,8 @@ chmod 755 /extrootfs/var/empty
 mkdir -p /extrootfs/tmp
 chmod 1777 /extrootfs/tmp
 
-mkdir -p /dev/net
-if [ ! -c /dev/net/tun ]; then
-    mknod /dev/net/tun c 10 200
-    chmod 600 /dev/net/tun
+mkdir -p /extrootfs/dev/net
+if [ ! -c /extrootfs/dev/net/tun ]; then
+    mknod /extrootfs/dev/net/tun c 10 200
+    chmod 666 /extrootfs/dev/net/tun
 fi
