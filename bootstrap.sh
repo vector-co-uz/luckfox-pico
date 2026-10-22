@@ -30,7 +30,7 @@ apk add mtd-utils-ubi
 apk add bottom
 apk add wget nano chrony usbutils
 apk add dialog tzdata
-apk add iproute2 lsblk findmnt mount umount cifs-utils nfs-utils libgpiod
+apk add iproute2 lsblk findmnt mount umount cifs-utils libgpiod
 apk add openssh-keygen chrony-openrc busybox-openrc
 
 # Clear apk cache
